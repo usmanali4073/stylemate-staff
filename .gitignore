@@ -1,0 +1,54 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.code-workspace
+*.swp
+*.swo
+
+# Node / Vite (UI)
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env files (keep examples)
+.env
+.env.*
+!.env.example
+
+# .NET (API)
+bin/
+obj/
+.vs/
+TestResult*/
+TestResults/
+*.user
+*.suo
+*.ncrunch*
+*.DotSettings.user
+_ReSharper*/
+*.iobj
+*.ipdb
+*.opendb
+*.cache
+artifacts/
+
+# Coverage / e2e outputs
+coverage/
+cypress/videos/
+cypress/screenshots/
+playwright-report/
+test-results/
+
+# Docker / local runtime
+docker-compose.override.yml
+docker-data/
+tmp/
+*.pid
+

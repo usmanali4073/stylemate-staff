@@ -1,0 +1,36 @@
+version: "3.9"
+name: staff
+networks:
+  stylemate_net:
+    external: true
+
+services:
+  staff_api:
+    build: ./apiservices/StaffApi
+    container_name: staff_api
+    expose: ["80"]
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+      - REDIS__CONNECTION=redis:6379
+    networks:
+      stylemate_net:
+        aliases: [staff_api]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/weatherforecast"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  staff_ui_nginx:
+    build: ./staff-ui
+    container_name: staff_ui_nginx
+    expose: ["80"]
+    networks:
+      stylemate_net:
+        aliases: [staff_ui_nginx]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost/remoteEntry.js"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
