@@ -6,7 +6,9 @@ networks:
 
 services:
   staff_api:
-    build: ./apiservices/StaffApi
+    build:
+      context: ./staff-api
+      dockerfile: staff-api/Dockerfile
     container_name: staff_api
     expose: ["80"]
     environment:
@@ -33,4 +35,3 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-

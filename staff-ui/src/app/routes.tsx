@@ -1,4 +1,2 @@
-import { lazy } from 'react';
-const Page = lazy(() => import('./Page'));
+import Page from './Page';
 export const routes = [{ path: '/staff', element: <Page /> }];
-
