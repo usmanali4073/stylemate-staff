@@ -1,4 +1,4 @@
-import federation from '@originjs/vite-plugin-federation';
+import { federation } from '@module-federation/vite';
 export default federation({
   name: 'staff_ui',
   filename: 'remoteEntry.js',
@@ -7,8 +7,8 @@ export default federation({
     './page': './src/app/Page.tsx'
   },
   shared: {
-    react: { singleton: true, requiredVersion: false },
-    'react-dom': { singleton: true, requiredVersion: false },
-    'react-router-dom': { singleton: true, requiredVersion: false }
+    react: { singleton: true },
+    'react-dom': { singleton: true },
+    'react-router-dom': { singleton: true }
   }
-} as any);
+});

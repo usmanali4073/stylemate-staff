@@ -5,6 +5,9 @@ import federation from './federation.config';
 export default defineConfig({
   base: './',
   plugins: [react(), federation],
-  build: { target: 'esnext' },
-  server: { port: 0 }
+  build: { target: 'chrome89' },
+  server: { 
+    origin: 'http://localhost:3003',
+    port: 0 
+  }
 });
