@@ -230,7 +230,9 @@ const ScheduledShifts: React.FC = () => {
             <Card
               sx={{
                 minHeight: 200,
-                backgroundColor: day.shifts.length === 0 ? 'grey.50' : 'background.paper',
+                backgroundColor: day.shifts.length === 0
+                  ? (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50'
+                  : 'background.paper',
                 border: '1px solid',
                 borderColor: 'divider'
               }}

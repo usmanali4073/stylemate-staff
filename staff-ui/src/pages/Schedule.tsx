@@ -17,8 +17,7 @@ import {
   useTheme,
   Alert,
   Divider,
-  Stack,
-  Menu
+  Stack
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -661,7 +660,7 @@ const Schedule: React.FC = () => {
             gridTemplateColumns: 'minmax(240px, 260px) repeat(7, minmax(100px, 1fr))',
             borderBottom: 1,
             borderColor: 'divider',
-            backgroundColor: 'grey.50',
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
             minWidth: 'fit-content'
           }}>
             <Box sx={{ p: 2, display: 'flex', alignItems: 'center' }}>

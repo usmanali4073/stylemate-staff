@@ -232,7 +232,9 @@ const StaffManagement: React.FC = () => {
       )}
 
       {/* Content */}
-      <Box>
+      <Box sx={{
+        pt: { xs: 0, md: 3 }
+      }}>
         {renderContent()}
       </Box>
     </Box>

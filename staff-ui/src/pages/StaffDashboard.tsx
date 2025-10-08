@@ -9,7 +9,6 @@ import {
 import {
   Group as TeamIcon,
   Schedule as ScheduleIcon,
-  AccessTime as ShiftsIcon,
   Assignment as TimesheetsIcon,
   Payment as PayRunsIcon
 } from '@mui/icons-material';
@@ -95,7 +94,7 @@ const StaffDashboard: React.FC = () => {
             variant="filled"
             sx={{
               backgroundColor: 'primary.main',
-              color: 'white',
+              color: 'primary.contrastText',
               fontWeight: 500
             }}
           />

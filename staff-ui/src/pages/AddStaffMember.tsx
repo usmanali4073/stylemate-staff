@@ -124,7 +124,7 @@ const AddStaffMember: React.FC = () => {
                   height: 20,
                   fontSize: '11px',
                   backgroundColor: 'error.main',
-                  color: 'white'
+                  color: 'error.contrastText'
                 }}
               />
             )}
