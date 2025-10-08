@@ -9,7 +9,6 @@ import {
   AppBar,
   Toolbar,
   IconButton,
-  useTheme,
   MenuItem,
   FormControl,
   InputLabel,
@@ -17,6 +16,7 @@ import {
   Divider
 } from '@mui/material';
 import { Close, Save } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { TeamMember } from '../../types';
 
@@ -340,14 +340,20 @@ const StaffMemberEditDrawer: React.FC<StaffMemberEditDrawerProps> = ({
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
+            <DatePicker
               label="Hire Date"
-              type="date"
-              value={editedMember.personalInfo.hireDate}
-              onChange={(e) => handlePersonalInfoChange('hireDate', e.target.value)}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              required
+              value={editedMember.personalInfo.hireDate ? new Date(editedMember.personalInfo.hireDate) : null}
+              onChange={(newValue) => {
+                if (newValue) {
+                  handlePersonalInfoChange('hireDate', newValue.toISOString().split('T')[0]);
+                }
+              }}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  required: true
+                }
+              }}
             />
           </Grid>
         </Grid>

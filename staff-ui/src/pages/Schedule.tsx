@@ -12,12 +12,12 @@ import {
   FormControl,
   Drawer,
   TextField,
-  Grid,
   useMediaQuery,
   useTheme,
   Alert,
   Divider,
-  Stack
+  Stack,
+  Collapse
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -28,8 +28,11 @@ import {
   Delete as DeleteIcon,
   Save as SaveIcon,
   Schedule as ScheduleIcon,
-  CalendarMonth as CalendarMonthIcon
+  CalendarMonth as CalendarMonthIcon,
+  ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { scheduleService, staffService } from '../services';
 import type { TeamMember, Shift } from '../types';
 import { getContainerStyles, getCardStyles, getGridSpacing, getScrollableContainerStyles } from '../utils/themeUtils';
@@ -55,6 +58,7 @@ const Schedule: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
 
   // Dialog state
   const [shiftDialog, setShiftDialog] = useState<{
@@ -524,18 +528,30 @@ const Schedule: React.FC = () => {
               return total + hours;
             }, 0);
 
+            const isExpanded = expandedMemberId === member.id;
+            const scheduledDays = memberShifts.length;
+
             return (
               <Card key={member.id} sx={{
                 ...getCardStyles(),
                 width: '100%',
                 overflow: 'hidden'
               }}>
-                <Box sx={{
-                  p: 2,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  backgroundColor: 'background.paper'
-                }}>
+                {/* Header - Tappable to expand/collapse */}
+                <Box
+                  onClick={() => setExpandedMemberId(isExpanded ? null : member.id)}
+                  sx={{
+                    p: 2,
+                    borderBottom: isExpanded ? 1 : 0,
+                    borderColor: 'divider',
+                    backgroundColor: 'background.paper',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                    '&:active': {
+                      backgroundColor: 'action.selected'
+                    }
+                  }}
+                >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Avatar
                       src={member.personalInfo.avatar}
@@ -564,86 +580,106 @@ const Schedule: React.FC = () => {
                       }}>
                         {member.employment.role}
                       </Typography>
+                      {!isExpanded && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          {scheduledDays} {scheduledDays === 1 ? 'shift' : 'shifts'} • {totalHours.toFixed(1)}h this week
+                        </Typography>
+                      )}
                     </Box>
-                    <Box sx={{
-                      textAlign: 'right',
-                      flexShrink: 0
-                    }}>
-                      <Typography variant="body2" fontWeight={600} color="primary.main">
-                        {totalHours.toFixed(1)}h
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        This week
-                      </Typography>
-                    </Box>
+                    <IconButton
+                      size="small"
+                      sx={{
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.3s',
+                        flexShrink: 0
+                      }}
+                    >
+                      <ExpandMoreIcon />
+                    </IconButton>
                   </Box>
                 </Box>
 
-                <Box sx={{ p: 2 }}>
-                  <Stack spacing={1}>
-                    {weekDays.map((day) => {
-                      const shift = getShiftForDay(day.date, member.id);
-                      const isToday = day.date === new Date().toISOString().split('T')[0];
+                {/* Expandable Weekly Schedule */}
+                <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                  <Box sx={{ p: 2 }}>
+                    <Box sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      mb: 2
+                    }}>
+                      <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
+                        Weekly Schedule
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600} color="primary.main">
+                        {totalHours.toFixed(1)}h total
+                      </Typography>
+                    </Box>
+                    <Stack spacing={1}>
+                      {weekDays.map((day) => {
+                        const shift = getShiftForDay(day.date, member.id);
+                        const isToday = day.date === new Date().toISOString().split('T')[0];
 
-                      return (
-                        <Box key={day.date} sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          p: 1.5,
-                          backgroundColor: isToday ? 'primary.light' : 'background.default',
-                          borderRadius: 1,
-                          border: 1,
-                          borderColor: isToday ? 'primary.main' : 'divider'
-                        }}>
-                          <Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {day.dayName}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(day.date).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </Typography>
-                          </Box>
+                        return (
+                          <Box key={day.date} sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            p: 1.5,
+                            backgroundColor: isToday ? 'primary.light' : 'background.default',
+                            borderRadius: 1,
+                            border: 1,
+                            borderColor: isToday ? 'primary.main' : 'divider'
+                          }}>
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {day.dayName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(day.date).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </Typography>
+                            </Box>
 
-                          <Box>
-                            {shift ? (
-                              <Chip
-                                label={formatShiftTime(shift.startTime, shift.endTime)}
-                                onClick={() => handleEditShift(shift)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: 'primary.main',
-                                  color: 'primary.contrastText',
-                                  fontWeight: 500,
-                                  cursor: 'pointer',
-                                  '&:hover': {
-                                    backgroundColor: 'primary.dark'
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={() => handleAddShift(member.id, day.date)}
-                                sx={{
-                                  minWidth: 'auto',
-                                  px: 2,
-                                  fontSize: '0.75rem'
-                                }}
-                              >
-                                Add
-                              </Button>
-                            )}
+                            <Box onClick={(e) => e.stopPropagation()}>
+                              {shift ? (
+                                <Chip
+                                  label={formatShiftTime(shift.startTime, shift.endTime)}
+                                  onClick={() => handleEditShift(shift)}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: 'primary.main',
+                                    color: 'primary.contrastText',
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      backgroundColor: 'primary.dark'
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  onClick={() => handleAddShift(member.id, day.date)}
+                                  sx={{
+                                    minWidth: 'auto',
+                                    px: 2,
+                                    fontSize: '0.75rem'
+                                  }}
+                                >
+                                  Add
+                                </Button>
+                              )}
+                            </Box>
                           </Box>
-                        </Box>
-                      );
-                    })}
-                  </Stack>
-                </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                </Collapse>
               </Card>
             );
           })}
@@ -878,31 +914,52 @@ const Schedule: React.FC = () => {
               </Select>
             </FormControl>
 
-            <TextField
+            <DatePicker
               label="Date"
-              type="date"
-              fullWidth
-              value={shiftForm.date}
-              onChange={(e) => setShiftForm({ ...shiftForm, date: e.target.value })}
-              InputLabelProps={{ shrink: true }}
+              value={shiftForm.date ? new Date(shiftForm.date) : null}
+              onChange={(newValue) => {
+                if (newValue) {
+                  const dateStr = newValue.toISOString().split('T')[0];
+                  setShiftForm({ ...shiftForm, date: dateStr });
+                }
+              }}
+              slotProps={{
+                textField: {
+                  fullWidth: true
+                }
+              }}
             />
 
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
+              <TimePicker
                 label="Start Time"
-                type="time"
-                fullWidth
-                value={shiftForm.startTime}
-                onChange={(e) => setShiftForm({ ...shiftForm, startTime: e.target.value })}
-                InputLabelProps={{ shrink: true }}
+                value={shiftForm.startTime ? new Date(`2000-01-01T${shiftForm.startTime}:00`) : null}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    const timeStr = `${newValue.getHours().toString().padStart(2, '0')}:${newValue.getMinutes().toString().padStart(2, '0')}`;
+                    setShiftForm({ ...shiftForm, startTime: timeStr });
+                  }
+                }}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
-              <TextField
+              <TimePicker
                 label="End Time"
-                type="time"
-                fullWidth
-                value={shiftForm.endTime}
-                onChange={(e) => setShiftForm({ ...shiftForm, endTime: e.target.value })}
-                InputLabelProps={{ shrink: true }}
+                value={shiftForm.endTime ? new Date(`2000-01-01T${shiftForm.endTime}:00`) : null}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    const timeStr = `${newValue.getHours().toString().padStart(2, '0')}:${newValue.getMinutes().toString().padStart(2, '0')}`;
+                    setShiftForm({ ...shiftForm, endTime: timeStr });
+                  }
+                }}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Box>
 
@@ -1031,34 +1088,45 @@ const Schedule: React.FC = () => {
             </FormControl>
 
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
+              <DatePicker
                 label="Start Date"
-                type="date"
-                fullWidth
-                value={bulkForm.startDate}
-                onChange={(e) => {
-                  const startDate = e.target.value;
-                  // Auto-calculate end date to be 6 days later (for a week)
-                  const start = new Date(startDate);
-                  const end = new Date(start);
-                  end.setDate(start.getDate() + 6);
-                  const endDate = end.toISOString().split('T')[0];
+                value={bulkForm.startDate ? new Date(bulkForm.startDate) : null}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    const startDate = newValue.toISOString().split('T')[0];
+                    // Auto-calculate end date to be 6 days later (for a week)
+                    const start = new Date(startDate);
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    const endDate = end.toISOString().split('T')[0];
 
-                  setBulkForm({
-                    ...bulkForm,
-                    startDate,
-                    endDate
-                  });
+                    setBulkForm({
+                      ...bulkForm,
+                      startDate,
+                      endDate
+                    });
+                  }
                 }}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
-              <TextField
+              <DatePicker
                 label="End Date"
-                type="date"
-                fullWidth
-                value={bulkForm.endDate}
-                onChange={(e) => setBulkForm({ ...bulkForm, endDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
+                value={bulkForm.endDate ? new Date(bulkForm.endDate) : null}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    const dateStr = newValue.toISOString().split('T')[0];
+                    setBulkForm({ ...bulkForm, endDate: dateStr });
+                  }
+                }}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Box>
 
@@ -1067,7 +1135,14 @@ const Schedule: React.FC = () => {
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Select Days ({new Date(bulkForm.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(bulkForm.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
                 </Typography>
-                <Grid container spacing={1}>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, 1fr)',
+                    sm: 'repeat(3, 1fr)'
+                  },
+                  gap: 1
+                }}>
                   {(() => {
                     const start = new Date(bulkForm.startDate);
                     const end = new Date(bulkForm.endDate);
@@ -1082,53 +1157,66 @@ const Schedule: React.FC = () => {
                     }
 
                     return days.map(({ dateStr, shortDay, monthDay }) => (
-                      <Grid item xs={6} sm={4} key={dateStr}>
-                        <Button
-                          variant={bulkForm.days.includes(dateStr) ? 'contained' : 'outlined'}
-                          size="small"
-                          fullWidth
-                          onClick={() => {
-                            const newDays = bulkForm.days.includes(dateStr)
-                              ? bulkForm.days.filter(d => d !== dateStr)
-                              : [...bulkForm.days, dateStr];
-                            setBulkForm({ ...bulkForm, days: newDays });
-                          }}
-                          sx={{
-                            minHeight: 48,
-                            fontSize: '0.75rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 0.5
-                          }}
-                        >
-                          <Box>{shortDay}</Box>
-                          <Box sx={{ fontSize: '0.65rem', opacity: 0.8 }}>
-                            {monthDay}
-                          </Box>
-                        </Button>
-                      </Grid>
+                      <Button
+                        key={dateStr}
+                        variant={bulkForm.days.includes(dateStr) ? 'contained' : 'outlined'}
+                        size="small"
+                        fullWidth
+                        onClick={() => {
+                          const newDays = bulkForm.days.includes(dateStr)
+                            ? bulkForm.days.filter(d => d !== dateStr)
+                            : [...bulkForm.days, dateStr];
+                          setBulkForm({ ...bulkForm, days: newDays });
+                        }}
+                        sx={{
+                          minHeight: 48,
+                          fontSize: '0.75rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 0.5
+                        }}
+                      >
+                        <Box>{shortDay}</Box>
+                        <Box sx={{ fontSize: '0.65rem', opacity: 0.8 }}>
+                          {monthDay}
+                        </Box>
+                      </Button>
                     ));
                   })()}
-                </Grid>
+                </Box>
               </Box>
             )}
 
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
+              <TimePicker
                 label="Start Time"
-                type="time"
-                fullWidth
-                value={bulkForm.startTime}
-                onChange={(e) => setBulkForm({ ...bulkForm, startTime: e.target.value })}
-                InputLabelProps={{ shrink: true }}
+                value={bulkForm.startTime ? new Date(`2000-01-01T${bulkForm.startTime}:00`) : null}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    const timeStr = `${newValue.getHours().toString().padStart(2, '0')}:${newValue.getMinutes().toString().padStart(2, '0')}`;
+                    setBulkForm({ ...bulkForm, startTime: timeStr });
+                  }
+                }}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
-              <TextField
+              <TimePicker
                 label="End Time"
-                type="time"
-                fullWidth
-                value={bulkForm.endTime}
-                onChange={(e) => setBulkForm({ ...bulkForm, endTime: e.target.value })}
-                InputLabelProps={{ shrink: true }}
+                value={bulkForm.endTime ? new Date(`2000-01-01T${bulkForm.endTime}:00`) : null}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    const timeStr = `${newValue.getHours().toString().padStart(2, '0')}:${newValue.getMinutes().toString().padStart(2, '0')}`;
+                    setBulkForm({ ...bulkForm, endTime: timeStr });
+                  }
+                }}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Box>
 

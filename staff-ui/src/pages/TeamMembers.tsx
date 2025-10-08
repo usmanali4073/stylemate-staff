@@ -38,7 +38,7 @@ import {
   Phone as PhoneIcon
 } from '@mui/icons-material';
 // import { useNavigate } from 'react-router-dom';
-import { staffService } from '../services';
+import { staffService, scheduleService } from '../services';
 import StaffMemberEditDrawer from '../components/molecules/StaffMemberEditDrawer';
 import type { TeamMember } from '../types';
 import { getContainerStyles, getCardStyles, getGridSpacing, getScrollableContainerStyles } from '../utils/themeUtils';
@@ -68,6 +68,7 @@ const TeamMembers: React.FC = () => {
   // Dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null);
+  const [memberActiveShifts, setMemberActiveShifts] = useState<number>(0);
 
   // Load staff members
   useEffect(() => {
@@ -226,12 +227,24 @@ const TeamMembers: React.FC = () => {
     handleMenuClose();
   };
 
-  const handleDeleteMember = () => {
+  const handleDeleteMember = async () => {
     if (selectedMemberId) {
       const member = staffMembers.find(m => m.id === selectedMemberId);
       if (member) {
-        setMemberToDelete(member);
-        setDeleteDialogOpen(true);
+        // Check for active shifts
+        try {
+          const shiftsResponse = await scheduleService.getShiftsByEmployee(member.id);
+          const activeShiftsCount = shiftsResponse.success ? shiftsResponse.data.length : 0;
+
+          setMemberToDelete(member);
+          setMemberActiveShifts(activeShiftsCount);
+          setDeleteDialogOpen(true);
+        } catch {
+          // If we can't check shifts, still allow deletion but show 0 shifts
+          setMemberToDelete(member);
+          setMemberActiveShifts(0);
+          setDeleteDialogOpen(true);
+        }
       }
     }
     handleMenuClose();
@@ -274,11 +287,25 @@ const TeamMembers: React.FC = () => {
     if (!memberToDelete) return;
 
     try {
+      // If member has active shifts, delete them first
+      if (memberActiveShifts > 0) {
+        const shiftsResponse = await scheduleService.getShiftsByEmployee(memberToDelete.id);
+        if (shiftsResponse.success && shiftsResponse.data.length > 0) {
+          // Delete all shifts for this employee
+          const deletePromises = shiftsResponse.data.map(shift =>
+            scheduleService.deleteShift(shift.id)
+          );
+          await Promise.all(deletePromises);
+        }
+      }
+
+      // Now delete the staff member
       const response = await staffService.deleteStaffMember(memberToDelete.id);
       if (response.success) {
         await loadStaffMembers();
         setDeleteDialogOpen(false);
         setMemberToDelete(null);
+        setMemberActiveShifts(0);
       } else {
         setError(response.message);
       }
@@ -657,16 +684,30 @@ const TeamMembers: React.FC = () => {
             <strong>
               {memberToDelete?.personalInfo.firstName} {memberToDelete?.personalInfo.lastName}
             </strong>{' '}
-            from your staff? This action cannot be undone.
+            from your staff?
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Their employment status will be changed to "terminated" and they will no longer appear in active staff lists.
-          </Typography>
+
+          {memberActiveShifts > 0 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Typography variant="body2" fontWeight={600} gutterBottom>
+                Warning: This staff member has {memberActiveShifts} active {memberActiveShifts === 1 ? 'shift' : 'shifts'}
+              </Typography>
+              <Typography variant="body2">
+                All scheduled shifts for this team member will be automatically deleted. This action cannot be undone.
+              </Typography>
+            </Alert>
+          )}
+
+          {memberActiveShifts === 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              This staff member has no active shifts. Their employment status will be changed to "terminated" and they will no longer appear in active staff lists.
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
           <Button onClick={confirmDeleteMember} color="error" variant="contained">
-            Remove Staff Member
+            {memberActiveShifts > 0 ? 'Delete Member & Shifts' : 'Remove Staff Member'}
           </Button>
         </DialogActions>
       </Dialog>

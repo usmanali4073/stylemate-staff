@@ -163,6 +163,26 @@ export class ScheduleService {
     }
   }
 
+  async getShiftsByEmployee(employeeId: string): Promise<ApiResponse<Shift[]>> {
+    try {
+      const shifts = dataStore.shifts.filter(shift => shift.employeeId === employeeId);
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      return {
+        data: shifts,
+        message: 'Shifts retrieved successfully',
+        success: true
+      };
+    } catch (error) {
+      return {
+        data: [],
+        message: 'Failed to retrieve shifts',
+        success: false
+      };
+    }
+  }
+
   async createShift(data: CreateShiftData): Promise<ApiResponse<Shift>> {
     try {
       // Validate employee exists
