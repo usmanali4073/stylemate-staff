@@ -35,7 +35,7 @@ services:
       stylemate_net:
         aliases: [staff_ui_nginx]
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost/remoteEntry.js"]
+      test: ["CMD", "curl", "-f", "http://localhost/remoteEntry.js"]
       interval: 10s
       timeout: 3s
       retries: 5
