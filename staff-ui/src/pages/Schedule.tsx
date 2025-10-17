@@ -42,8 +42,60 @@ interface WeekDay {
   date: string;
   dayName: string;
   dayNumber: number;
+  month: number;
+  monthName: string;
   shortName: string;
 }
+
+// Status badge configuration for shift status display
+const getStatusBadge = (status: string) => {
+  const configs = {
+    pending: {
+      label: 'Pending',
+      bgColor: '#FFF4E5',
+      textColor: '#663C00',
+      hoverBgColor: '#FFE082'
+    },
+    scheduled: {
+      label: 'Scheduled',
+      bgColor: '#E3F2FD',
+      textColor: '#0D47A1',
+      hoverBgColor: '#90CAF9'
+    },
+    confirmed: {
+      label: 'Confirmed',
+      bgColor: '#E8F5E9',
+      textColor: '#1B5E20',
+      hoverBgColor: '#81C784'
+    },
+    rejected: {
+      label: 'Rejected',
+      bgColor: '#FFEBEE',
+      textColor: '#B71C1C',
+      hoverBgColor: '#EF5350'
+    },
+    completed: {
+      label: 'Completed',
+      bgColor: '#F5F5F5',
+      textColor: '#424242',
+      hoverBgColor: '#E0E0E0'
+    },
+    cancelled: {
+      label: 'Cancelled',
+      bgColor: '#FAFAFA',
+      textColor: '#757575',
+      hoverBgColor: '#BDBDBD'
+    },
+    'no-show': {
+      label: 'No Show',
+      bgColor: '#FBE9E7',
+      textColor: '#BF360C',
+      hoverBgColor: '#FF7043'
+    }
+  };
+
+  return configs[status as keyof typeof configs] || configs.scheduled;
+};
 
 const Schedule: React.FC = () => {
   const theme = useTheme();
@@ -95,17 +147,20 @@ const Schedule: React.FC = () => {
   // Generate week days
   const generateWeekDays = (startDate: Date): WeekDay[] => {
     const days: WeekDay[] = [];
+    const current = new Date(startDate);
 
     for (let i = 0; i < 7; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-
       days.push({
-        date: date.toISOString().split('T')[0],
-        dayName: date.toLocaleDateString('en-US', { weekday: 'long' }),
-        dayNumber: date.getDate(),
-        shortName: date.toLocaleDateString('en-US', { weekday: 'short' })
+        date: current.toISOString().split('T')[0],
+        dayName: current.toLocaleDateString('en-US', { weekday: 'long' }),
+        dayNumber: current.getDate(),
+        month: current.getMonth(),
+        monthName: current.toLocaleDateString('en-US', { month: 'short' }),
+        shortName: current.toLocaleDateString('en-US', { weekday: 'short' })
       });
+
+      // Safely increment to next day
+      current.setDate(current.getDate() + 1);
     }
     return days;
   };
@@ -467,9 +522,14 @@ const Schedule: React.FC = () => {
       const responses = await Promise.all(promises);
 
       const failures = responses.filter(r => !r.success);
-      if (failures.length === 0) {
-        // Reload schedule data
-        const weekStart = getWeekStart(currentWeek);
+      const successes = responses.filter(r => r.success);
+
+      // If there are any successes, navigate to the week and reload
+      if (successes.length > 0) {
+        const firstShiftDate = new Date(bulkForm.days[0] + 'T00:00:00');
+        const weekStart = getWeekStart(firstShiftDate);
+        setCurrentWeek(firstShiftDate);
+
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
 
@@ -481,11 +541,31 @@ const Schedule: React.FC = () => {
         if (shiftsResponse.success) {
           setShifts(shiftsResponse.data);
         }
+      }
 
+      if (failures.length === 0) {
+        // All shifts created successfully
         setBulkDialog(false);
         setError(null);
       } else {
-        setError(`Failed to create ${failures.length} shifts`);
+        // Show detailed error messages for failed shifts
+        const failureDetails = responses
+          .map((r, index) => ({ response: r, date: bulkForm.days[index] }))
+          .filter(({ response }) => !response.success)
+          .map(({ response, date }) => {
+            const dateFormatted = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
+              weekday: 'short', month: 'short', day: 'numeric'
+            });
+            return `${dateFormatted}: ${response.message}`;
+          })
+          .join('\n');
+
+        const shift = failures.length === 1 ? 'shift' : 'shifts';
+        const summary = successes.length > 0
+          ? `Created ${successes.length} ${successes.length === 1 ? 'shift' : 'shifts'}, but ${failures.length} ${shift} failed`
+          : `Failed to create ${failures.length} ${shift}`;
+
+        setError(`${summary}:\n${failureDetails}`);
       }
     } catch {
       setError('Failed to create bulk shifts');
@@ -636,7 +716,7 @@ const Schedule: React.FC = () => {
                                 {day.dayName}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {new Date(day.date).toLocaleDateString('en-US', {
+                                {new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
                                   month: 'short',
                                   day: 'numeric'
                                 })}
@@ -645,20 +725,33 @@ const Schedule: React.FC = () => {
 
                             <Box onClick={(e) => e.stopPropagation()}>
                               {shift ? (
-                                <Chip
-                                  label={formatShiftTime(shift.startTime, shift.endTime)}
-                                  onClick={() => handleEditShift(shift)}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: 'primary.main',
-                                    color: 'primary.contrastText',
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                      backgroundColor: 'primary.dark'
-                                    }
-                                  }}
-                                />
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
+                                  <Chip
+                                    label={formatShiftTime(shift.startTime, shift.endTime)}
+                                    onClick={() => handleEditShift(shift)}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: 'primary.main',
+                                      color: 'primary.contrastText',
+                                      fontWeight: 500,
+                                      cursor: 'pointer',
+                                      '&:hover': {
+                                        backgroundColor: 'primary.dark'
+                                      }
+                                    }}
+                                  />
+                                  <Chip
+                                    label={getStatusBadge(shift.status).label}
+                                    size="small"
+                                    sx={{
+                                      height: 18,
+                                      fontSize: '0.65rem',
+                                      backgroundColor: getStatusBadge(shift.status).bgColor,
+                                      color: getStatusBadge(shift.status).textColor,
+                                      fontWeight: 600
+                                    }}
+                                  />
+                                </Box>
                               ) : (
                                 <Button
                                   variant="outlined"
@@ -706,9 +799,7 @@ const Schedule: React.FC = () => {
             </Box>
 
             {weekDays.map((day, index) => {
-              const currentDate = new Date(day.date);
-              const firstDay = new Date(weekDays[0].date);
-              const showMonth = index === 0 || currentDate.getMonth() !== firstDay.getMonth();
+              const showMonth = index === 0 || day.month !== weekDays[0].month;
 
               return (
                 <Box key={day.date} sx={{ p: 1, textAlign: 'center' }}>
@@ -717,7 +808,7 @@ const Schedule: React.FC = () => {
                   </Typography>
                   <Typography variant="caption" fontWeight={600} sx={{ display: 'block', fontSize: '0.75rem' }}>
                     {showMonth
-                      ? currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      ? `${day.monthName} ${day.dayNumber}`
                       : day.dayNumber
                     }
                   </Typography>
@@ -793,28 +884,46 @@ const Schedule: React.FC = () => {
                     sx={{
                       p: 1,
                       display: 'flex',
+                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      gap: 0.5,
                       borderRight: 1,
                       borderColor: 'divider'
                     }}
                   >
                     {shift ? (
-                      <Chip
-                        label={formatShiftTime(shift.startTime, shift.endTime)}
-                        onClick={() => handleEditShift(shift)}
-                        sx={{
-                          backgroundColor: 'primary.light',
-                          color: 'primary.contrastText',
-                          fontWeight: 500,
-                          fontSize: '0.75rem',
-                          height: 28,
-                          cursor: 'pointer',
-                          '&:hover': {
-                            backgroundColor: 'primary.main'
-                          }
-                        }}
-                      />
+                      <>
+                        <Chip
+                          label={formatShiftTime(shift.startTime, shift.endTime)}
+                          onClick={() => handleEditShift(shift)}
+                          sx={{
+                            backgroundColor: 'primary.light',
+                            color: 'primary.contrastText',
+                            fontWeight: 500,
+                            fontSize: '0.75rem',
+                            height: 28,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              backgroundColor: 'primary.main'
+                            }
+                          }}
+                        />
+                        <Chip
+                          label={getStatusBadge(shift.status).label}
+                          size="small"
+                          sx={{
+                            height: 16,
+                            fontSize: '0.6rem',
+                            backgroundColor: getStatusBadge(shift.status).bgColor,
+                            color: getStatusBadge(shift.status).textColor,
+                            fontWeight: 600,
+                            '& .MuiChip-label': {
+                              px: 0.75
+                            }
+                          }}
+                        />
+                      </>
                     ) : (
                       <Button
                         variant="text"
@@ -916,7 +1025,7 @@ const Schedule: React.FC = () => {
 
             <DatePicker
               label="Date"
-              value={shiftForm.date ? new Date(shiftForm.date) : null}
+              value={shiftForm.date ? new Date(shiftForm.date + 'T00:00:00') : null}
               onChange={(newValue) => {
                 if (newValue) {
                   const dateStr = newValue.toISOString().split('T')[0];
@@ -1090,12 +1199,12 @@ const Schedule: React.FC = () => {
             <Box sx={{ display: 'flex', gap: 2 }}>
               <DatePicker
                 label="Start Date"
-                value={bulkForm.startDate ? new Date(bulkForm.startDate) : null}
+                value={bulkForm.startDate ? new Date(bulkForm.startDate + 'T00:00:00') : null}
                 onChange={(newValue) => {
                   if (newValue) {
                     const startDate = newValue.toISOString().split('T')[0];
                     // Auto-calculate end date to be 6 days later (for a week)
-                    const start = new Date(startDate);
+                    const start = new Date(startDate + 'T00:00:00');
                     const end = new Date(start);
                     end.setDate(start.getDate() + 6);
                     const endDate = end.toISOString().split('T')[0];
@@ -1115,7 +1224,7 @@ const Schedule: React.FC = () => {
               />
               <DatePicker
                 label="End Date"
-                value={bulkForm.endDate ? new Date(bulkForm.endDate) : null}
+                value={bulkForm.endDate ? new Date(bulkForm.endDate + 'T00:00:00') : null}
                 onChange={(newValue) => {
                   if (newValue) {
                     const dateStr = newValue.toISOString().split('T')[0];
@@ -1133,7 +1242,7 @@ const Schedule: React.FC = () => {
             {bulkForm.startDate && bulkForm.endDate && (
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Select Days ({new Date(bulkForm.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(bulkForm.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  Select Days ({new Date(bulkForm.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(bulkForm.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
                 </Typography>
                 <Box sx={{
                   display: 'grid',
@@ -1144,16 +1253,20 @@ const Schedule: React.FC = () => {
                   gap: 1
                 }}>
                   {(() => {
-                    const start = new Date(bulkForm.startDate);
-                    const end = new Date(bulkForm.endDate);
+                    const start = new Date(bulkForm.startDate + 'T00:00:00');
+                    const end = new Date(bulkForm.endDate + 'T00:00:00');
                     const days = [];
+                    const current = new Date(start);
 
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                      const dateStr = d.toISOString().split('T')[0];
-                      const shortDay = d.toLocaleDateString('en-US', { weekday: 'short' });
-                      const monthDay = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+                    while (current <= end) {
+                      const dateStr = current.toISOString().split('T')[0];
+                      const shortDay = current.toLocaleDateString('en-US', { weekday: 'short' });
+                      const monthDay = current.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 
                       days.push({ dateStr, shortDay, monthDay });
+
+                      // Safely increment to next day
+                      current.setDate(current.getDate() + 1);
                     }
 
                     return days.map(({ dateStr, shortDay, monthDay }) => (

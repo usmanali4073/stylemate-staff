@@ -211,7 +211,7 @@ export class ScheduleService {
         };
       }
 
-      // Create new shift
+      // Create new shift (pending employee confirmation)
       const newShift: Shift = {
         id: generateId(),
         employeeId: data.employeeId,
@@ -220,7 +220,7 @@ export class ScheduleService {
         endTime: data.endTime,
         shiftType: data.shiftType,
         position: data.position,
-        status: 'scheduled',
+        status: 'pending', // Shift awaits employee confirmation
         breakTimes: [],
         notes: data.notes || '',
         hourlyRate: employee.employment.hourlyRate,
@@ -517,7 +517,8 @@ export class ScheduleService {
         return conflicts;
       }
 
-      // Check employee availability
+      // Check employee availability (NOTE: These are warnings, not blocking errors)
+      // Owner can schedule anyone on any day. Employee will be notified to confirm/reject.
       const dayOfWeek = new Date(shiftData.date).getDay();
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const dayName = dayNames[dayOfWeek];
@@ -525,9 +526,9 @@ export class ScheduleService {
       if (employee.availability.unavailableDays.includes(dayName)) {
         conflicts.push({
           type: 'availability',
-          message: `${employee.personalInfo.firstName} is not available on ${dayName}s`,
+          message: `${employee.personalInfo.firstName} marked ${dayName}s as unavailable (they can confirm/reject when notified)`,
           affectedShifts: [],
-          severity: 'error'
+          severity: 'warning'
         });
       }
 
@@ -535,9 +536,9 @@ export class ScheduleService {
       if ((dayOfWeek === 0 || dayOfWeek === 6) && !employee.availability.canWorkWeekends) {
         conflicts.push({
           type: 'availability',
-          message: `${employee.personalInfo.firstName} cannot work weekends`,
+          message: `${employee.personalInfo.firstName} marked weekends as unavailable (they can confirm/reject when notified)`,
           affectedShifts: [],
-          severity: 'error'
+          severity: 'warning'
         });
       }
 

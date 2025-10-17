@@ -82,7 +82,7 @@ export interface UpdateTeamMemberData extends Partial<Omit<TeamMember, 'id' | 'c
 // ========================================
 
 export type ShiftType = 'opening' | 'mid' | 'closing' | 'custom';
-export type ShiftStatus = 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no-show';
+export type ShiftStatus = 'pending' | 'scheduled' | 'confirmed' | 'rejected' | 'completed' | 'cancelled' | 'no-show';
 
 export interface BreakPeriod {
   id: UUID;
