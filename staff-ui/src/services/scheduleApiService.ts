@@ -5,6 +5,11 @@ import type {
   CreateShiftRequest,
   UpdateShiftRequest,
   BulkCreateShiftRequest,
+  RecurringShiftPatternResponse,
+  CreateRecurringShiftRequest,
+  UpdateRecurringShiftRequest,
+  ShiftOccurrence,
+  AvailabilitySlot,
 } from '../types/schedule';
 
 export interface ConflictError {
@@ -73,6 +78,38 @@ const scheduleApiService = {
       }
       throw err;
     }
+  },
+
+  // Recurring shift patterns
+  getRecurringPatterns: (businessId: string, staffMemberId?: string) => {
+    const params = staffMemberId ? `?staffMemberId=${staffMemberId}` : '';
+    return api.get<RecurringShiftPatternResponse[]>(`/api/businesses/${businessId}/schedule/recurring${params}`).then(r => r.data);
+  },
+
+  getRecurringPattern: (businessId: string, patternId: string) =>
+    api.get<RecurringShiftPatternResponse>(`/api/businesses/${businessId}/schedule/recurring/${patternId}`).then(r => r.data),
+
+  createRecurringPattern: (businessId: string, data: CreateRecurringShiftRequest) =>
+    api.post<RecurringShiftPatternResponse>(`/api/businesses/${businessId}/schedule/recurring`, data).then(r => r.data),
+
+  updateRecurringPattern: (businessId: string, patternId: string, data: UpdateRecurringShiftRequest) =>
+    api.put<RecurringShiftPatternResponse>(`/api/businesses/${businessId}/schedule/recurring/${patternId}`, data).then(r => r.data),
+
+  deleteRecurringPattern: (businessId: string, patternId: string) =>
+    api.delete(`/api/businesses/${businessId}/schedule/recurring/${patternId}`).then(r => r.data),
+
+  // Combined occurrences (individual shifts + pattern occurrences)
+  getShiftOccurrences: (businessId: string, startDate: string, endDate: string, staffMemberId?: string, locationId?: string) => {
+    const params = new URLSearchParams({ startDate, endDate });
+    if (staffMemberId) params.append('staffMemberId', staffMemberId);
+    if (locationId) params.append('locationId', locationId);
+    return api.get<ShiftOccurrence[]>(`/api/businesses/${businessId}/schedule/occurrences?${params}`).then(r => r.data);
+  },
+
+  // Availability (shifts + time-off)
+  getAvailability: (businessId: string, staffMemberId: string, startDate: string, endDate: string) => {
+    const params = new URLSearchParams({ startDate, endDate });
+    return api.get<AvailabilitySlot[]>(`/api/businesses/${businessId}/schedule/availability/${staffMemberId}?${params}`).then(r => r.data);
   },
 };
 

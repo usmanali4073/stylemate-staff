@@ -17,15 +17,21 @@ public class StaffLocationConfiguration : IEntityTypeConfiguration<StaffLocation
         builder.Property(e => e.Id).HasColumnName("id");
         builder.Property(e => e.StaffMemberId).HasColumnName("staff_member_id").IsRequired();
         builder.Property(e => e.LocationId).HasColumnName("location_id").IsRequired();
+        builder.Property(e => e.RoleId).HasColumnName("role_id");
         builder.Property(e => e.IsPrimary).HasColumnName("is_primary").IsRequired();
         builder.Property(e => e.AssignedAt).HasColumnName("assigned_at").IsRequired();
 
-        // Foreign key relationship - cascade delete handled in StaffMemberConfiguration
+        // Foreign key relationships
         // No FK to BusinessLocation (cross-service reference)
         builder.HasOne(e => e.StaffMember)
             .WithMany(sm => sm.StaffLocations)
             .HasForeignKey(e => e.StaffMemberId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(e => e.Role)
+            .WithMany()
+            .HasForeignKey(e => e.RoleId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Unique constraint: one staff member can only be assigned to a location once
         builder.HasIndex(e => new { e.StaffMemberId, e.LocationId }).IsUnique();

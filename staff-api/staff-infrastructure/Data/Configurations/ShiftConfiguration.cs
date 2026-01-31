@@ -21,6 +21,8 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
         builder.Property(e => e.ShiftType).HasColumnName("shift_type").IsRequired();
         builder.Property(e => e.Status).HasColumnName("status").IsRequired();
         builder.Property(e => e.LocationId).HasColumnName("location_id");
+        builder.Property(e => e.PatternId).HasColumnName("pattern_id");
+        builder.Property(e => e.IsOverride).HasColumnName("is_override").IsRequired();
         builder.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
         builder.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").IsRequired();
@@ -31,9 +33,16 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
             .HasForeignKey(e => e.StaffMemberId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // FK to RecurringShiftPattern with set null - if pattern deleted, shifts become one-off
+        builder.HasOne(e => e.Pattern)
+            .WithMany()
+            .HasForeignKey(e => e.PatternId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Indexes for range queries and conflict checks
         builder.HasIndex(e => new { e.BusinessId, e.Date });
         builder.HasIndex(e => new { e.StaffMemberId, e.Date });
         builder.HasIndex(e => new { e.LocationId, e.Date });
+        builder.HasIndex(e => e.PatternId);
     }
 }

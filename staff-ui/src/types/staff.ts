@@ -61,6 +61,8 @@ export interface StaffLocationResponse {
   locationId: string;
   locationName: string | null;
   isPrimary: boolean;
+  roleId: string | null;
+  roleName: string | null;
   assignedAt: string;
 }
 

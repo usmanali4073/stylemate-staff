@@ -18,9 +18,13 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
+  Select,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { Delete, Star, StarBorder } from '@mui/icons-material';
 import { useStaffLocations, useAssignLocation, useRemoveLocation, useSetPrimaryLocation } from '@/hooks/useStaff';
+import { useRoles, useAssignRole } from '@/hooks/useRoles';
 import { useSnackbar } from 'notistack';
 
 interface Location {
@@ -37,9 +41,11 @@ interface StaffLocationAssignmentsProps {
 const StaffLocationAssignments: React.FC<StaffLocationAssignmentsProps> = ({ businessId, staffId }) => {
   const { enqueueSnackbar } = useSnackbar();
   const { data: staffLocations, isLoading, error } = useStaffLocations(businessId, staffId);
+  const { data: roles, isLoading: isLoadingRoles } = useRoles(businessId);
   const assignLocation = useAssignLocation(businessId, staffId);
   const removeLocation = useRemoveLocation(businessId, staffId);
   const setPrimaryLocation = useSetPrimaryLocation(businessId, staffId);
+  const assignRoleMutation = useAssignRole(businessId);
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
@@ -118,6 +124,26 @@ const StaffLocationAssignments: React.FC<StaffLocationAssignmentsProps> = ({ bus
     }
   };
 
+  const handleRoleChange = async (locationId: string, roleId: string) => {
+    try {
+      await assignRoleMutation.mutateAsync({
+        staffMemberId: staffId,
+        locationId,
+        roleId,
+      });
+      enqueueSnackbar('Role updated successfully', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar('Failed to update role', { variant: 'error' });
+    }
+  };
+
+  // Get role name by ID
+  const getRoleName = (roleId: string | null): string => {
+    if (!roleId || !roles) return 'Employee (Default)';
+    const role = roles.find((r) => r.id === roleId);
+    return role ? role.name : 'Unknown Role';
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -155,19 +181,38 @@ const StaffLocationAssignments: React.FC<StaffLocationAssignmentsProps> = ({ bus
             {locations.map((location) => (
               <ListItem
                 key={location.id}
-                secondaryAction={
+                sx={{
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '&:last-child': { borderBottom: 0 },
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  py: 2,
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body1" fontWeight={500}>
+                          {location.locationName || location.locationId}
+                        </Typography>
+                        {location.isPrimary && (
+                          <Chip
+                            icon={<Star />}
+                            label="Primary"
+                            color="primary"
+                            size="small"
+                          />
+                        )}
+                      </Box>
+                    }
+                    secondary={`Assigned: ${new Date(location.assignedAt).toLocaleDateString()}`}
+                  />
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    {location.isPrimary ? (
-                      <Chip
-                        icon={<Star />}
-                        label="Primary"
-                        color="primary"
-                        size="small"
-                        sx={{ mr: 1 }}
-                      />
-                    ) : (
+                    {!location.isPrimary && (
                       <IconButton
-                        edge="end"
+                        size="small"
                         onClick={() => handleSetPrimary(location.locationId)}
                         title="Set as Primary"
                       >
@@ -175,7 +220,7 @@ const StaffLocationAssignments: React.FC<StaffLocationAssignmentsProps> = ({ bus
                       </IconButton>
                     )}
                     <IconButton
-                      edge="end"
+                      size="small"
                       onClick={() => handleRemoveLocation(location.locationId)}
                       disabled={location.isPrimary}
                       title={location.isPrimary ? 'Cannot remove primary location' : 'Remove location'}
@@ -183,17 +228,30 @@ const StaffLocationAssignments: React.FC<StaffLocationAssignmentsProps> = ({ bus
                       <Delete />
                     </IconButton>
                   </Box>
-                }
-                sx={{
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  '&:last-child': { borderBottom: 0 },
-                }}
-              >
-                <ListItemText
-                  primary={location.locationName || location.locationId}
-                  secondary={`Assigned: ${new Date(location.assignedAt).toLocaleDateString()}`}
-                />
+                </Box>
+
+                {/* Role Selection */}
+                <Box sx={{ pl: 0, pr: 0 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Role at this location</InputLabel>
+                    <Select
+                      value={location.roleId || ''}
+                      onChange={(e) => handleRoleChange(location.locationId, e.target.value)}
+                      label="Role at this location"
+                      disabled={isLoadingRoles || assignRoleMutation.isPending}
+                    >
+                      {roles?.map((role) => (
+                        <MenuItem key={role.id} value={role.id}>
+                          {role.name}
+                          {role.isDefault && ' (Default)'}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    Current role: {getRoleName(location.roleId)}
+                  </Typography>
+                </Box>
               </ListItem>
             ))}
           </List>

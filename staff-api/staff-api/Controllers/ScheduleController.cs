@@ -16,17 +16,23 @@ public class ScheduleController : ControllerBase
     private readonly IValidator<CreateShiftRequest> _createValidator;
     private readonly IValidator<UpdateShiftRequest> _updateValidator;
     private readonly IValidator<BulkCreateShiftRequest> _bulkValidator;
+    private readonly IValidator<CreateRecurringShiftRequest> _createRecurringValidator;
+    private readonly IValidator<UpdateRecurringShiftRequest> _updateRecurringValidator;
 
     public ScheduleController(
         IScheduleService scheduleService,
         IValidator<CreateShiftRequest> createValidator,
         IValidator<UpdateShiftRequest> updateValidator,
-        IValidator<BulkCreateShiftRequest> bulkValidator)
+        IValidator<BulkCreateShiftRequest> bulkValidator,
+        IValidator<CreateRecurringShiftRequest> createRecurringValidator,
+        IValidator<UpdateRecurringShiftRequest> updateRecurringValidator)
     {
         _scheduleService = scheduleService;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _bulkValidator = bulkValidator;
+        _createRecurringValidator = createRecurringValidator;
+        _updateRecurringValidator = updateRecurringValidator;
     }
 
     /// <summary>
@@ -275,6 +281,210 @@ public class ScheduleController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    // Recurring shift pattern endpoints
+
+    /// <summary>
+    /// GET /api/businesses/{businessId}/schedule/patterns?staffMemberId=
+    /// </summary>
+    [HttpGet("patterns")]
+    [ProducesResponseType(typeof(List<RecurringShiftPatternResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<List<RecurringShiftPatternResponse>>> GetRecurringPatterns(
+        Guid businessId,
+        [FromQuery] Guid? staffMemberId = null)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        var patterns = await _scheduleService.GetRecurringPatternsAsync(businessId, staffMemberId);
+        return Ok(patterns);
+    }
+
+    /// <summary>
+    /// GET /api/businesses/{businessId}/schedule/patterns/{patternId}
+    /// </summary>
+    [HttpGet("patterns/{patternId}")]
+    [ProducesResponseType(typeof(RecurringShiftPatternResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RecurringShiftPatternResponse>> GetRecurringPattern(
+        Guid businessId,
+        Guid patternId)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        var pattern = await _scheduleService.GetRecurringPatternAsync(businessId, patternId);
+        if (pattern == null)
+            return NotFound(new { error = "Recurring pattern not found" });
+
+        return Ok(pattern);
+    }
+
+    /// <summary>
+    /// POST /api/businesses/{businessId}/schedule/patterns
+    /// </summary>
+    [HttpPost("patterns")]
+    [ProducesResponseType(typeof(RecurringShiftPatternResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<RecurringShiftPatternResponse>> CreateRecurringPattern(
+        Guid businessId,
+        [FromBody] CreateRecurringShiftRequest request)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        var validationResult = await _createRecurringValidator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new
+            {
+                errors = validationResult.Errors.Select(e => new
+                {
+                    property = e.PropertyName,
+                    error = e.ErrorMessage
+                })
+            });
+        }
+
+        try
+        {
+            var pattern = await _scheduleService.CreateRecurringPatternAsync(businessId, request);
+            return CreatedAtAction(nameof(GetRecurringPattern), new { businessId, patternId = pattern.Id }, pattern);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// PUT /api/businesses/{businessId}/schedule/patterns/{patternId}
+    /// </summary>
+    [HttpPut("patterns/{patternId}")]
+    [ProducesResponseType(typeof(RecurringShiftPatternResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RecurringShiftPatternResponse>> UpdateRecurringPattern(
+        Guid businessId,
+        Guid patternId,
+        [FromBody] UpdateRecurringShiftRequest request)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        var validationResult = await _updateRecurringValidator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new
+            {
+                errors = validationResult.Errors.Select(e => new
+                {
+                    property = e.PropertyName,
+                    error = e.ErrorMessage
+                })
+            });
+        }
+
+        try
+        {
+            var pattern = await _scheduleService.UpdateRecurringPatternAsync(businessId, patternId, request);
+            if (pattern == null)
+                return NotFound(new { error = "Recurring pattern not found" });
+
+            return Ok(pattern);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// DELETE /api/businesses/{businessId}/schedule/patterns/{patternId}
+    /// </summary>
+    [HttpDelete("patterns/{patternId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteRecurringPattern(Guid businessId, Guid patternId)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        var deleted = await _scheduleService.DeleteRecurringPatternAsync(businessId, patternId);
+        if (!deleted)
+            return NotFound(new { error = "Recurring pattern not found" });
+
+        return NoContent();
+    }
+
+    // Combined schedule and availability endpoints
+
+    /// <summary>
+    /// GET /api/businesses/{businessId}/schedule/occurrences?startDate=&endDate=&staffMemberId=&locationId=
+    /// Returns combined one-off shifts and expanded recurring pattern occurrences
+    /// </summary>
+    [HttpGet("occurrences")]
+    [ProducesResponseType(typeof(List<ShiftOccurrence>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<List<ShiftOccurrence>>> GetShiftOccurrences(
+        Guid businessId,
+        [FromQuery] string startDate,
+        [FromQuery] string endDate,
+        [FromQuery] Guid? staffMemberId = null,
+        [FromQuery] Guid? locationId = null)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        if (!DateOnly.TryParseExact(startDate, "yyyy-MM-dd", out var start))
+            return BadRequest(new { error = "startDate must be in yyyy-MM-dd format" });
+
+        if (!DateOnly.TryParseExact(endDate, "yyyy-MM-dd", out var end))
+            return BadRequest(new { error = "endDate must be in yyyy-MM-dd format" });
+
+        var occurrences = await _scheduleService.GetShiftOccurrencesAsync(businessId, start, end, staffMemberId, locationId);
+        return Ok(occurrences);
+    }
+
+    /// <summary>
+    /// GET /api/businesses/{businessId}/schedule/staff/{staffMemberId}/availability?startDate=&endDate=
+    /// Returns combined shifts and approved time-off for a staff member
+    /// </summary>
+    [HttpGet("staff/{staffMemberId}/availability")]
+    [ProducesResponseType(typeof(List<AvailabilitySlot>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<List<AvailabilitySlot>>> GetAvailability(
+        Guid businessId,
+        Guid staffMemberId,
+        [FromQuery] string startDate,
+        [FromQuery] string endDate)
+    {
+        var userId = GetUserIdFromJwt();
+        if (!userId.HasValue)
+            return Unauthorized(new { error = "Invalid user token" });
+
+        if (!DateOnly.TryParseExact(startDate, "yyyy-MM-dd", out var start))
+            return BadRequest(new { error = "startDate must be in yyyy-MM-dd format" });
+
+        if (!DateOnly.TryParseExact(endDate, "yyyy-MM-dd", out var end))
+            return BadRequest(new { error = "endDate must be in yyyy-MM-dd format" });
+
+        var availability = await _scheduleService.GetAvailabilityAsync(businessId, staffMemberId, start, end);
+        return Ok(availability);
     }
 
     private Guid? GetUserIdFromJwt()

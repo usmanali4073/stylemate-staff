@@ -16,6 +16,10 @@ public class StaffManagementContext : DbContext
     public DbSet<StaffLocation> StaffLocations { get; set; }
     public DbSet<StaffService> StaffServices { get; set; }
     public DbSet<Shift> Shifts { get; set; }
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<RecurringShiftPattern> RecurringShiftPatterns { get; set; }
+    public DbSet<TimeOffRequest> TimeOffRequests { get; set; }
+    public DbSet<TimeOffType> TimeOffTypes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +31,10 @@ public class StaffManagementContext : DbContext
         modelBuilder.ApplyConfiguration(new StaffLocationConfiguration());
         modelBuilder.ApplyConfiguration(new StaffServiceConfiguration());
         modelBuilder.ApplyConfiguration(new ShiftConfiguration());
+        modelBuilder.ApplyConfiguration(new RoleConfiguration());
+        modelBuilder.ApplyConfiguration(new RecurringShiftPatternConfiguration());
+        modelBuilder.ApplyConfiguration(new TimeOffTypeConfiguration());
+        modelBuilder.ApplyConfiguration(new TimeOffRequestConfiguration());
 
         // Global UTC converter for all DateTime properties
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())

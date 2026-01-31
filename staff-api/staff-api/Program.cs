@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using FluentValidation;
@@ -7,6 +8,7 @@ using staff_application.Interfaces;
 using staff_application.Services;
 using staff_application.Validators;
 using staff_infrastructure.Data;
+using staff_infrastructure.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -95,11 +97,31 @@ builder.Services.AddCors(options =>
 // FluentValidation - register all validators from application assembly (manual validation pattern)
 builder.Services.AddValidatorsFromAssemblyContaining<CreateStaffMemberValidator>();
 
+// Authorization - Register permission-based authorization handler and policies
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ManageSchedule", policy =>
+        policy.Requirements.Add(new PermissionRequirement("Scheduling.Manage")));
+    options.AddPolicy("ViewSchedule", policy =>
+        policy.Requirements.Add(new PermissionRequirement("Scheduling.View")));
+    options.AddPolicy("ManageTimeOff", policy =>
+        policy.Requirements.Add(new PermissionRequirement("TimeOff.Manage")));
+    options.AddPolicy("ApproveTimeOff", policy =>
+        policy.Requirements.Add(new PermissionRequirement("TimeOff.Approve")));
+    options.AddPolicy("ManageStaff", policy =>
+        policy.Requirements.Add(new PermissionRequirement("Staff.Manage")));
+    options.AddPolicy("ViewStaff", policy =>
+        policy.Requirements.Add(new PermissionRequirement("Staff.View")));
+});
+
 // Dependency Injection - Application Services
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<ITimeOffService, TimeOffService>();
 
 var app = builder.Build();
 

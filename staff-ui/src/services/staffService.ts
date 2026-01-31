@@ -16,6 +16,10 @@ const staffService = {
   getStaffMember: (businessId: string, staffId: string) =>
     api.get<StaffMemberResponse>(`/api/businesses/${businessId}/staff/${staffId}`).then(r => r.data),
 
+  // Get current user's staff profile
+  getCurrentUserProfile: (businessId: string) =>
+    api.get<StaffMemberResponse>(`/api/businesses/${businessId}/staff/me`).then(r => r.data),
+
   createStaffMember: (businessId: string, data: CreateStaffMemberRequest) =>
     api.post<StaffMemberResponse>(`/api/businesses/${businessId}/staff`, data).then(r => r.data),
 
