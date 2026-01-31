@@ -1,31 +1,14 @@
-import React, { lazy } from 'react';
+import React from 'react';
 import type { RouteObject } from 'react-router-dom';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-
-// Lazy load pages for code splitting
-const StaffManagement = lazy(() => import('./pages/StaffManagement'));
-const AddStaffMember = lazy(() => import('./pages/AddStaffMember'));
-
-// Wrapper component with LocalizationProvider for Module Federation
-const withLocalizationProvider = (Component: React.LazyExoticComponent<React.FC>) => {
-  return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Component />
-    </LocalizationProvider>
-  );
-};
+import StaffManagement from './pages/StaffManagement';
 
 // Define staff routes - these will be wrapped by portal's ThemedLayout
+// StaffManagement handles internal routing: /staff (TeamMembers), /staff/add (AddStaffMember), /staff/:staffId (StaffDetail)
 const staffRoutes: RouteObject[] = [
   {
     path: '/staff/*',
-    element: withLocalizationProvider(StaffManagement)
+    element: <StaffManagement />,
   },
-  {
-    path: '/staff/add',
-    element: withLocalizationProvider(AddStaffMember)
-  }
 ];
 
 export default staffRoutes;

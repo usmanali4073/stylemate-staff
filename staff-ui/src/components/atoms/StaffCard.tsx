@@ -1,120 +1,232 @@
 import React from 'react';
 import {
   Card,
-  CardActionArea,
   CardContent,
   Box,
   Typography,
   Chip,
-  useTheme
+  Avatar,
+  IconButton,
+  Menu,
+  MenuItem,
 } from '@mui/material';
-import { ChevronRight } from '@mui/icons-material';
+import {
+  Edit as EditIcon,
+  MoreVert as MoreVertIcon,
+  CalendarMonth as CalendarIcon,
+} from '@mui/icons-material';
+import type { StaffMemberListResponse, PermissionLevel, StaffStatus } from '@/types/staff';
 
 interface StaffCardProps {
-  title: string;
-  description: string;
-  icon: React.ComponentType<{ sx?: object }>;
-  colorKey: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success';
-  count?: number;
-  onClick: () => void;
+  staff: StaffMemberListResponse;
+  onEdit: (staffId: string) => void;
+  onStatusChange: (staffId: string, status: StaffStatus) => void;
 }
 
-const StaffCard: React.FC<StaffCardProps> = ({
-  title,
-  description,
-  icon: IconComponent,
-  colorKey,
-  count,
-  onClick
-}) => {
-  const theme = useTheme();
+const StaffCard: React.FC<StaffCardProps> = ({ staff, onEdit, onStatusChange }) => {
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleStatusChange = (status: StaffStatus) => {
+    onStatusChange(staff.id, status);
+    handleMenuClose();
+  };
+
+  const getPermissionColor = (level: PermissionLevel): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
+    switch (level) {
+      case 'Owner':
+        return 'secondary'; // purple
+      case 'High':
+        return 'error'; // red
+      case 'Medium':
+        return 'warning'; // orange
+      case 'Low':
+        return 'info'; // blue
+      case 'Basic':
+        return 'default'; // grey
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusColor = (status: StaffStatus): 'default' | 'success' | 'warning' => {
+    switch (status) {
+      case 'Active':
+        return 'success';
+      case 'Suspended':
+        return 'warning';
+      case 'Archived':
+        return 'default';
+      default:
+        return 'default';
+    }
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const getAvatarColor = (firstName: string, lastName: string) => {
+    const colors = ['#1976d2', '#7b1fa2', '#388e3c', '#f57c00', '#d32f2f', '#00796b'];
+    const name = `${firstName}${lastName}`;
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
 
   return (
-    <Card
-      sx={{
-        height: '100%',
-        borderRadius: theme => (theme.shape.borderRadius as number) / 8,
-        backgroundColor: theme => theme.palette.background.paper,
-        border: theme => theme.palette.mode === 'dark' ? 'none' : '1px solid',
-        borderColor: 'divider',
-        boxShadow: theme => theme.palette.mode === 'dark' ? 1 : 0,
-        transition: 'all 0.2s ease-in-out',
-        '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: theme => theme.palette.mode === 'dark'
-            ? '0 8px 24px 0 rgba(0,0,0,0.4)'
-            : '0 8px 24px 0 rgba(0,0,0,0.12)'
-        }
-      }}
-    >
-      <CardActionArea
-        onClick={onClick}
-        sx={{ height: '100%' }}
+    <>
+      <Card
+        sx={{
+          height: '100%',
+          transition: 'all 0.2s ease-in-out',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: 3,
+          },
+        }}
       >
-        <CardContent sx={{ p: 3, height: '100%' }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
-            <Box
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+            {/* Avatar */}
+            <Avatar
+              src={staff.photoUrl || undefined}
               sx={{
-                width: 48,
-                height: 48,
-                backgroundColor: theme.palette[colorKey].main,
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                mr: 2,
+                bgcolor: staff.photoUrl ? undefined : getAvatarColor(staff.firstName, staff.lastName),
+                width: 56,
+                height: 56,
+                fontSize: '1.25rem',
+                fontWeight: 600,
                 flexShrink: 0,
-                boxShadow: `0 4px 14px 0 ${theme.palette[colorKey].main}33`
               }}
             >
-              <IconComponent sx={{
-                color: theme.palette[colorKey].contrastText || 'white',
-                fontSize: 24
-              }} />
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography
-                  variant="h6"
-                  component="h3"
-                  gutterBottom
-                  fontWeight={600}
-                >
-                  {title}
-                  {count && (
-                    <Chip
-                      label={count}
-                      size="small"
-                      sx={{
-                        ml: 1,
-                        height: 20,
-                        fontSize: '11px',
-                        backgroundColor: 'primary.main',
-                        color: 'white'
-                      }}
-                    />
-                  )}
+              {!staff.photoUrl && getInitials(staff.firstName, staff.lastName)}
+            </Avatar>
+
+            {/* Content */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              {/* Name and Actions */}
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.1rem' }}>
+                  {staff.firstName} {staff.lastName}
                 </Typography>
-                <ChevronRight
-                  sx={{
-                    display: { xs: 'block', md: 'none' },
-                    color: 'text.secondary',
-                    fontSize: 24
-                  }}
-                />
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(staff.id);
+                    }}
+                    sx={{ padding: 0.5 }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={handleMenuOpen}
+                    sx={{ padding: 0.5 }}
+                  >
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                </Box>
               </Box>
+
+              {/* Job Title */}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {staff.jobTitle || 'No job title'}
+              </Typography>
+
+              {/* Email */}
               <Typography
                 variant="body2"
-                color="text.secondary"
-                sx={{ lineHeight: 1.5 }}
+                color="primary"
+                sx={{
+                  mb: 1.5,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
               >
-                {description}
+                {staff.email}
               </Typography>
+
+              {/* Badges Row */}
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Permission Level */}
+                <Chip
+                  label={staff.permissionLevel}
+                  size="small"
+                  color={getPermissionColor(staff.permissionLevel)}
+                  sx={{ fontSize: '0.75rem', height: 24 }}
+                />
+
+                {/* Status */}
+                <Chip
+                  label={staff.status}
+                  size="small"
+                  color={getStatusColor(staff.status)}
+                  sx={{ fontSize: '0.75rem', height: 24 }}
+                />
+
+                {/* Bookable Indicator */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 1,
+                    bgcolor: staff.isBookable ? 'success.lighter' : 'action.hover',
+                  }}
+                >
+                  <CalendarIcon
+                    sx={{
+                      fontSize: 14,
+                      color: staff.isBookable ? 'success.main' : 'text.disabled',
+                    }}
+                  />
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontSize: '0.7rem',
+                      color: staff.isBookable ? 'success.main' : 'text.disabled',
+                    }}
+                  >
+                    {staff.isBookable ? 'Bookable' : 'Not Bookable'}
+                  </Typography>
+                </Box>
+
+                {/* Primary Location */}
+                {staff.primaryLocationName && (
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                    📍 {staff.primaryLocationName}
+                  </Typography>
+                )}
+              </Box>
             </Box>
           </Box>
         </CardContent>
-      </CardActionArea>
-    </Card>
+      </Card>
+
+      {/* Status Change Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem onClick={() => handleStatusChange('Active')}>Set Active</MenuItem>
+        <MenuItem onClick={() => handleStatusChange('Suspended')}>Suspend</MenuItem>
+        <MenuItem onClick={() => handleStatusChange('Archived')}>Archive</MenuItem>
+      </Menu>
+    </>
   );
 };
 

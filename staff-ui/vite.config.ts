@@ -7,18 +7,19 @@ export default defineConfig({
   base: './',
   plugins: [react(), federation],
   build: {
-    target: 'chrome89',
+    target: 'esnext',
     modulePreload: false,
-    minify: false
+    minify: false,
   },
   server: {
-    host: '0.0.0.0',
-    origin: 'http://localhost:3003',
-    port: 3003
+    origin: 'http://localhost:3002',
+    port: 3002,
+    strictPort: true,
+    allowedHosts: ['host.docker.internal'],
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
-    }
-  }
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
 });

@@ -1,716 +1,200 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Avatar,
-  Chip,
-  IconButton,
-  Menu,
-  MenuItem,
-  TextField,
-  InputAdornment,
-  CircularProgress,
+  Grid,
+  Skeleton,
+  Snackbar,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Card,
-  CardContent,
-  useMediaQuery,
-  useTheme
+  Button,
 } from '@mui/material';
-import {
-  Search as SearchIcon,
-  MoreVert as MoreVertIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  PersonAdd as PersonAddIcon,
-  Email as EmailIcon,
-  Phone as PhoneIcon
-} from '@mui/icons-material';
-// import { useNavigate } from 'react-router-dom';
-import { staffService, scheduleService } from '../services';
-import StaffMemberEditDrawer from '../components/molecules/StaffMemberEditDrawer';
-import type { TeamMember } from '../types';
-import { getContainerStyles, getCardStyles, getGridSpacing, getScrollableContainerStyles } from '../utils/themeUtils';
-import { StaffHeaderControlsContext } from './StaffManagement';
+import { PersonAdd as PersonAddIcon, Add as AddIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { useActiveBusinessId } from '@/hooks/useActiveBusinessId';
+import { useStaffMembers, useChangeStaffStatus } from '@/hooks/useStaff';
+import StaffCard from '@/components/atoms/StaffCard';
+import StaffFilters from '@/components/molecules/StaffFilters';
+import StaffMemberEditDrawer from '@/components/molecules/StaffMemberEditDrawer';
+import type { StaffStatus, PermissionLevel } from '@/types/staff';
 
 const TeamMembers: React.FC = () => {
-  // const navigate = useNavigate();
-  const theme = useTheme();
-  const { setHeaderControls } = useContext(StaffHeaderControlsContext);
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  const businessId = useActiveBusinessId();
 
-  // State
-  const [staffMembers, setStaffMembers] = useState<TeamMember[]>([]);
-  const [filteredMembers, setFilteredMembers] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: staffMembers = [], isLoading, error } = useStaffMembers(businessId);
+  const changeStatusMutation = useChangeStaffStatus(businessId || '');
+
+  // Filter state
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Menu state
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StaffStatus | 'All'>('All');
+  const [permissionFilter, setPermissionFilter] = useState<PermissionLevel | 'All'>('All');
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
 
-  // Dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null);
-  const [memberActiveShifts, setMemberActiveShifts] = useState<number>(0);
+  // Snackbar state
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  // Load staff members
-  useEffect(() => {
-    loadStaffMembers();
-  }, []);
-
-  // Filter members when search term changes
-  useEffect(() => {
-    applyFilters();
-  }, [staffMembers, searchTerm]);
-
-  // Set header controls
-  useEffect(() => {
-    if (isMobile) {
-      // Mobile: Icon-only toolbar at bottom
-      setHeaderControls(
-        <>
-          <TextField
-            placeholder="Search team..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            variant="outlined"
-            sx={{
-              flex: 1,
-              '& .MuiOutlinedInput-root': {
-                height: 40,
-                borderRadius: 2
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <IconButton
-            onClick={handleAddMember}
-            sx={{
-              backgroundColor: 'primary.main',
-              color: 'primary.contrastText',
-              '&:hover': {
-                backgroundColor: 'primary.dark'
-              },
-              width: 40,
-              height: 40
-            }}
-          >
-            <PersonAddIcon fontSize="small" />
-          </IconButton>
-        </>
-      );
-    } else {
-      // Desktop: Full controls
-      setHeaderControls(
-        <>
-          <TextField
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            sx={{
-              minWidth: 300,
-              maxWidth: 400,
-              '& .MuiOutlinedInput-root': {
-                height: 36
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-            {filteredMembers.length} of {staffMembers.length}
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<PersonAddIcon />}
-            onClick={handleAddMember}
-            size="small"
-            sx={{ whiteSpace: 'nowrap' }}
-          >
-            Add Member
-          </Button>
-        </>
-      );
-    }
-
-    return () => setHeaderControls(null);
-  }, [searchTerm, filteredMembers.length, staffMembers.length, isMobile, setHeaderControls]);
-
-  const loadStaffMembers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await staffService.getStaff();
-      if (response.success) {
-        setStaffMembers(response.data);
-      } else {
-        setError(response.message);
-      }
-    } catch {
-      setError('Failed to load staff members');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = useCallback(() => {
+  // Filter staff members
+  const filteredStaff = useMemo(() => {
     let filtered = [...staffMembers];
 
-    // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(member =>
-        `${member.personalInfo.firstName} ${member.personalInfo.lastName}`.toLowerCase().includes(searchLower) ||
-        member.personalInfo.email.toLowerCase().includes(searchLower) ||
-        member.personalInfo.phone?.includes(searchTerm) ||
-        member.employment.role.toLowerCase().includes(searchLower)
+      filtered = filtered.filter(
+        (member) =>
+          `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchLower) ||
+          member.email.toLowerCase().includes(searchLower)
       );
     }
 
-    setFilteredMembers(filtered);
-  }, [staffMembers, searchTerm]);
+    if (statusFilter !== 'All') {
+      filtered = filtered.filter((member) => member.status === statusFilter);
+    }
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>, memberId: string) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedMemberId(memberId);
-  };
+    if (permissionFilter !== 'All') {
+      filtered = filtered.filter((member) => member.permissionLevel === permissionFilter);
+    }
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setSelectedMemberId(null);
-  };
+    return filtered;
+  }, [staffMembers, searchTerm, statusFilter, permissionFilter]);
 
-  const handleAddMember = () => {
-    setSelectedMember(null);
+  const handleEditStaff = (staffId: string) => {
+    setSelectedStaffId(staffId);
     setDrawerOpen(true);
   };
 
-  const handleEditMember = () => {
-    if (selectedMemberId) {
-      const member = staffMembers.find(m => m.id === selectedMemberId);
-      if (member) {
-        setSelectedMember(member);
-        setDrawerOpen(true);
-      }
-    }
-    handleMenuClose();
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    setSelectedStaffId(null);
   };
 
-  const handleDeleteMember = async () => {
-    if (selectedMemberId) {
-      const member = staffMembers.find(m => m.id === selectedMemberId);
-      if (member) {
-        // Check for active shifts
-        try {
-          const shiftsResponse = await scheduleService.getShiftsByEmployee(member.id);
-          const activeShiftsCount = shiftsResponse.success ? shiftsResponse.data.length : 0;
-
-          setMemberToDelete(member);
-          setMemberActiveShifts(activeShiftsCount);
-          setDeleteDialogOpen(true);
-        } catch {
-          // If we can't check shifts, still allow deletion but show 0 shifts
-          setMemberToDelete(member);
-          setMemberActiveShifts(0);
-          setDeleteDialogOpen(true);
-        }
-      }
-    }
-    handleMenuClose();
-  };
-
-  const handleSaveMember = async (member: TeamMember) => {
-    try {
-      let response;
-      if (selectedMember) {
-        response = await staffService.updateStaffMember(member.id, member);
-      } else {
-        // For new members, extract only the required fields for creation
-        const createData = {
-          firstName: member.personalInfo.firstName,
-          lastName: member.personalInfo.lastName,
-          email: member.personalInfo.email,
-          phone: member.personalInfo.phone,
-          role: member.employment.role,
-          department: member.employment.department,
-          employmentType: member.employment.employmentType,
-          hourlyRate: member.employment.hourlyRate,
-          hireDate: member.personalInfo.hireDate
-        };
-        response = await staffService.createStaffMember(createData);
-      }
-
-      if (response.success) {
-        await loadStaffMembers();
-        setDrawerOpen(false);
-        setSelectedMember(null);
-      } else {
-        setError(response.message);
-      }
-    } catch {
-      setError('Failed to save staff member');
-    }
-  };
-
-  const confirmDeleteMember = async () => {
-    if (!memberToDelete) return;
+  const handleStatusChange = async (staffId: string, status: StaffStatus) => {
+    if (!businessId) return;
 
     try {
-      // If member has active shifts, delete them first
-      if (memberActiveShifts > 0) {
-        const shiftsResponse = await scheduleService.getShiftsByEmployee(memberToDelete.id);
-        if (shiftsResponse.success && shiftsResponse.data.length > 0) {
-          // Delete all shifts for this employee
-          const deletePromises = shiftsResponse.data.map(shift =>
-            scheduleService.deleteShift(shift.id)
-          );
-          await Promise.all(deletePromises);
-        }
-      }
-
-      // Now delete the staff member
-      const response = await staffService.deleteStaffMember(memberToDelete.id);
-      if (response.success) {
-        await loadStaffMembers();
-        setDeleteDialogOpen(false);
-        setMemberToDelete(null);
-        setMemberActiveShifts(0);
-      } else {
-        setError(response.message);
-      }
-    } catch {
-      setError('Failed to delete staff member');
+      await changeStatusMutation.mutateAsync({
+        staffId,
+        data: { status },
+      });
+      setSnackbarMessage(`Staff member status changed to ${status}`);
+      setSnackbarOpen(true);
+    } catch (err) {
+      setSnackbarMessage(`Failed to change status: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setSnackbarOpen(true);
     }
   };
 
-
-  const getStatusColor = (status: TeamMember['employment']['status']) => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'inactive':
-        return 'warning';
-      case 'on-leave':
-        return 'info';
-      case 'terminated':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusLabel = (status: TeamMember['employment']['status']) => {
-    switch (status) {
-      case 'active':
-        return 'Active';
-      case 'inactive':
-        return 'Inactive';
-      case 'on-leave':
-        return 'On Leave';
-      case 'terminated':
-        return 'Terminated';
-      default:
-        return status;
-    }
-  };
-
-  const getAvatarColor = (firstName: string, lastName: string) => {
-    const colors = ['#1976d2', '#7b1fa2', '#388e3c', '#f57c00', '#d32f2f', '#00796b'];
-    const name = `${firstName}${lastName}`;
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
-
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    // Simple phone formatting
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 11 && cleaned.startsWith('1')) {
-      return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
-    }
-    return phone;
-  };
-
-  if (loading) {
+  // Loading skeleton
+  if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-        <CircularProgress />
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ mb: 3 }}>
+          <Skeleton variant="rectangular" height={56} sx={{ mb: 2 }} />
+        </Box>
+        <Grid container spacing={3}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+              <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2 }} />
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Failed to load staff members: {error instanceof Error ? error.message : 'Unknown error'}
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (staffMembers.length === 0) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 400,
+          textAlign: 'center',
+          gap: 2,
+          p: { xs: 2, sm: 3 },
+        }}
+      >
+        <PersonAddIcon sx={{ fontSize: 64, color: 'text.secondary' }} />
+        <Typography variant="h5" fontWeight={600} color="text.secondary">
+          Add your first team member
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Start building your team by adding staff members who can manage appointments and services.
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{
-      ...getContainerStyles('full')
-    }}>
-      {/* Error Alert */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, mx: isMobile ? 2 : 0 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/* Filters */}
+      <StaffFilters
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        permissionFilter={permissionFilter}
+        onPermissionFilterChange={setPermissionFilter}
+      />
 
-      {/* Staff Members - Responsive Layout */}
-      {isMobile ? (
-        /* Mobile Card View */
-        <Box sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: getGridSpacing().xs,
-          width: '100%',
-          ...getScrollableContainerStyles()
-        }}>
-          {filteredMembers.map((member) => (
-            <Card key={member.id} sx={{
-              ...getCardStyles(),
-              width: '100%',
-              overflow: 'hidden'
-            }}>
-              <CardContent sx={{
-                p: 2,
-                '&:last-child': { pb: 2 }
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                  <Avatar
-                    sx={{
-                      bgcolor: getAvatarColor(member.personalInfo.firstName, member.personalInfo.lastName),
-                      width: 48,
-                      height: 48,
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      flexShrink: 0
-                    }}
-                    src={member.personalInfo.avatar}
-                  >
-                    {getInitials(member.personalInfo.firstName, member.personalInfo.lastName)}
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="h6" fontWeight={600} sx={{
-                      mb: 0.5,
-                      fontSize: '1.1rem',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {member.personalInfo.firstName} {member.personalInfo.lastName}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{
-                      mb: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {member.employment.role}
-                    </Typography>
-                    <Chip
-                      label={getStatusLabel(member.employment.status)}
-                      size="small"
-                      color={getStatusColor(member.employment.status)}
-                      sx={{ fontSize: '11px', height: 24 }}
-                    />
-                  </Box>
-                  <IconButton
-                    onClick={(e) => handleMenuClick(e, member.id)}
-                    size="small"
-                    sx={{ flexShrink: 0 }}
-                  >
-                    <MoreVertIcon />
-                  </IconButton>
-                </Box>
+      {/* Staff Count */}
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Showing {filteredStaff.length} of {staffMembers.length} staff members
+      </Typography>
 
-                <Box sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                  mt: 2
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <EmailIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
-                    <Typography variant="body2" color="primary" sx={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: 1,
-                      fontSize: '0.875rem'
-                    }}>
-                      {member.personalInfo.email}
-                    </Typography>
-                  </Box>
-                  {member.personalInfo.phone && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
-                      <Typography variant="body2" color="text.secondary" sx={{
-                        fontSize: '0.875rem'
-                      }}>
-                        {formatPhoneNumber(member.personalInfo.phone)}
-                      </Typography>
-                    </Box>
-                  )}
-                  <Typography variant="caption" color="text.secondary" sx={{
-                    fontSize: '0.75rem',
-                    mt: 0.5
-                  }}>
-                    Hired: {new Date(member.personalInfo.hireDate).toLocaleDateString()}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
-        </Box>
-      ) : (
-        /* Desktop Table View */
-        <TableContainer component={Paper} sx={{
-          borderRadius: 2,
-          ...getScrollableContainerStyles()
-        }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Name
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Contact Information
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Hired
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    Actions
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredMembers.map((member) => (
-                <TableRow key={member.id} hover>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar
-                        sx={{
-                          bgcolor: getAvatarColor(member.personalInfo.firstName, member.personalInfo.lastName),
-                          width: 40,
-                          height: 40,
-                          fontSize: '14px',
-                          fontWeight: 600
-                        }}
-                        src={member.personalInfo.avatar}
-                      >
-                        {getInitials(member.personalInfo.firstName, member.personalInfo.lastName)}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="body1" fontWeight={500}>
-                          {member.personalInfo.firstName} {member.personalInfo.lastName}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {member.employment.role}
-                        </Typography>
-                        <Chip
-                          label={getStatusLabel(member.employment.status)}
-                          size="small"
-                          color={getStatusColor(member.employment.status)}
-                          sx={{ mt: 0.5, fontSize: '11px', height: 20 }}
-                        />
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="primary">
-                          {member.personalInfo.email}
-                        </Typography>
-                      </Box>
-                      {member.personalInfo.phone && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2" color="text.secondary">
-                            {formatPhoneNumber(member.personalInfo.phone)}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {new Date(member.personalInfo.hireDate).toLocaleDateString()}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      onClick={(e) => handleMenuClick(e, member.id)}
-                      size="small"
-                    >
-                      <MoreVertIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          {filteredMembers.length === 0 && !loading && (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No staff members found
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {searchTerm
-                  ? 'Try adjusting your search'
-                  : 'Get started by adding your first staff member'
-                }
-              </Typography>
-              {staffMembers.length === 0 && (
-                <Button
-                  variant="contained"
-                  startIcon={<PersonAddIcon />}
-                  onClick={handleAddMember}
-                >
-                  Add First Staff Member
-                </Button>
-              )}
-            </Box>
-          )}
-        </TableContainer>
-      )}
-
-      {/* Empty state for mobile */}
-      {isMobile && filteredMembers.length === 0 && !loading && (
-        <Card sx={{
-          ...getCardStyles(),
-          mt: 2,
-          p: 4,
-          textAlign: 'center',
-          width: '100%'
-        }}>
+      {/* Staff Grid */}
+      {filteredStaff.length === 0 ? (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No staff members found
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {searchTerm
-              ? 'Try adjusting your search'
-              : 'Get started by adding your first staff member'
-            }
+          <Typography variant="body2" color="text.secondary">
+            Try adjusting your filters
           </Typography>
-          {staffMembers.length === 0 && (
-            <Button
-              variant="contained"
-              startIcon={<PersonAddIcon />}
-              onClick={handleAddMember}
-              fullWidth
-              size="large"
-            >
-              Add First Staff Member
-            </Button>
-          )}
-        </Card>
+        </Box>
+      ) : (
+        <Grid container spacing={3}>
+          {filteredStaff.map((staff) => (
+            <Grid key={staff.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+              <StaffCard
+                staff={staff}
+                onEdit={handleEditStaff}
+                onStatusChange={handleStatusChange}
+              />
+            </Grid>
+          ))}
+        </Grid>
       )}
 
-      {/* Row Action Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={handleEditMember}>
-          <EditIcon sx={{ mr: 1, fontSize: 20 }} />
-          Edit Profile
-        </MenuItem>
-        <MenuItem onClick={handleDeleteMember} sx={{ color: 'error.main' }}>
-          <DeleteIcon sx={{ mr: 1, fontSize: 20 }} />
-          Remove Staff Member
-        </MenuItem>
-      </Menu>
-
-      {/* Staff Member Edit Drawer */}
+      {/* Edit Drawer */}
       <StaffMemberEditDrawer
         open={drawerOpen}
-        member={selectedMember}
-        onSave={handleSaveMember}
-        onCancel={() => {
-          setDrawerOpen(false);
-          setSelectedMember(null);
-        }}
+        staffId={selectedStaffId}
+        onClose={handleCloseDrawer}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Remove Staff Member</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to remove{' '}
-            <strong>
-              {memberToDelete?.personalInfo.firstName} {memberToDelete?.personalInfo.lastName}
-            </strong>{' '}
-            from your staff?
-          </Typography>
-
-          {memberActiveShifts > 0 && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              <Typography variant="body2" fontWeight={600} gutterBottom>
-                Warning: This staff member has {memberActiveShifts} active {memberActiveShifts === 1 ? 'shift' : 'shifts'}
-              </Typography>
-              <Typography variant="body2">
-                All scheduled shifts for this team member will be automatically deleted. This action cannot be undone.
-              </Typography>
-            </Alert>
-          )}
-
-          {memberActiveShifts === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              This staff member has no active shifts. Their employment status will be changed to "terminated" and they will no longer appear in active staff lists.
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={confirmDeleteMember} color="error" variant="contained">
-            {memberActiveShifts > 0 ? 'Delete Member & Shifts' : 'Remove Staff Member'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
     </Box>
   );
 };

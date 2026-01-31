@@ -16,15 +16,21 @@ services:
       - "5002:80"
     environment:
       - ASPNETCORE_URLS=http://+:80
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=stylemate_postgres;Port=5432;Database=stylemate;Username=postgres;Password=postgres123
+      - JWT__Issuer=StyleMateAuth
+      - JWT__Audience=StyleMateClients
+      - JWT__SecretKey=YourSuperSecretKeyThatIsAtLeast256BitsLongForHmacSha256Signing
       - REDIS__CONNECTION=redis:6379
     networks:
       stylemate_net:
         aliases: [staff_api]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/weatherforecast"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1/swagger/index.html || exit 1"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
+      start_period: 30s
 
   staff_ui_nginx:
     build: ./staff-ui
@@ -35,7 +41,7 @@ services:
       stylemate_net:
         aliases: [staff_ui_nginx]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/remoteEntry.js"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1/remoteEntry.js"]
       interval: 10s
       timeout: 3s
       retries: 5

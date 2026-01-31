@@ -1,243 +1,116 @@
-import React, { useState, useEffect, createContext } from 'react';
-import {
-  Box,
-  IconButton,
-  Button,
-  ButtonGroup,
-  useTheme,
-  useMediaQuery,
-  Container,
-  Tabs,
-  Tab,
-  Paper
-} from '@mui/material';
-import {
-  ArrowBack,
-  People,
-  Schedule as ScheduleIcon
-} from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { createContext, useState } from 'react';
+import { Box, Typography, Chip, Button } from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import TeamMembers from './TeamMembers';
-import ScheduleView from './Schedule';
+import Schedule from './Schedule';
+import StaffDetail from './StaffDetail';
+import AddStaffMemberDrawer from '@/components/molecules/AddStaffMemberDrawer';
+import { useActiveBusinessId } from '@/hooks/useActiveBusinessId';
 
-// Context for header controls
+// Context for child components (e.g., Schedule) to inject header controls
 export const StaffHeaderControlsContext = createContext<{
   setHeaderControls: (controls: React.ReactNode) => void;
 }>({
   setHeaderControls: () => {},
 });
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`staff-management-tabpanel-${index}`}
-      aria-labelledby={`staff-management-tab-${index}`}
-    >
-      {value === index && <Box sx={{ height: '100%' }}>{children}</Box>}
-    </div>
-  );
-};
+type StaffTab = 'team' | 'schedule';
 
 const StaffManagement: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-  // Default to team members tab
-  const initialTab = location.state?.activeTab ?? 0;
-  const [tabValue, setTabValue] = useState(initialTab);
+  const businessId = useActiveBusinessId();
+  const [activeTab, setActiveTab] = useState<StaffTab>('team');
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [headerControls, setHeaderControls] = useState<React.ReactNode>(null);
 
-  // Clear the location state after using it
-  useEffect(() => {
-    if (location.state?.activeTab !== undefined) {
-      // Clear the state to prevent it from persisting on subsequent visits
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
-
-  const handleBackClick = () => {
-    navigate('/dashboard');
-  };
-
-  const renderContent = () => (
-    <StaffHeaderControlsContext.Provider value={{ setHeaderControls }}>
-      <TabPanel value={tabValue} index={0}>
-        <TeamMembers />
-      </TabPanel>
-      <TabPanel value={tabValue} index={1}>
-        <ScheduleView />
-      </TabPanel>
-    </StaffHeaderControlsContext.Provider>
-  );
+  if (!businessId) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <p>No active business selected. Please select a business to continue.</p>
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{
-      minHeight: '100vh',
-      backgroundColor: 'background.default',
-      pb: isMobile ? 8 : 0
-    }}>
-      {/* Header */}
-      <Box sx={{
-        backgroundColor: 'background.paper',
-        borderBottom: 1,
-        borderColor: 'divider',
-        position: 'sticky',
-        top: 0,
-        zIndex: 1100
-      }}>
-        <Container maxWidth="xl">
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: isMobile ? 1 : 2,
-            py: isMobile ? 1 : 1.5,
-          }}>
-            {/* Back Button */}
-            <IconButton
-              onClick={handleBackClick}
-              size="small"
-              sx={{
-                flexShrink: 0
-              }}
-            >
-              <ArrowBack fontSize="small" />
-            </IconButton>
-
-            {isMobile ? (
-              /* Mobile: Tab Navigation Only */
-              <Tabs
-                value={tabValue}
-                onChange={(_, newValue) => setTabValue(newValue)}
+    <StaffHeaderControlsContext.Provider value={{ setHeaderControls }}>
+      <Routes>
+        <Route
+          path="/:staffId"
+          element={<StaffDetail />}
+        />
+        <Route
+          path="/*"
+          element={
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              {/* Header */}
+              <Box
                 sx={{
-                  flex: 1,
-                  minHeight: 40,
-                  '& .MuiTabs-flexContainer': {
-                    justifyContent: 'center'
-                  },
-                  '& .MuiTab-root': {
-                    minHeight: 40,
-                    minWidth: 80,
-                    fontSize: '0.875rem',
-                    textTransform: 'none',
-                    fontWeight: 500
-                  }
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  px: { xs: 2, sm: 3 },
+                  py: 2,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  flexWrap: 'wrap',
+                  gap: 1.5,
                 }}
               >
-                <Tab icon={<People fontSize="small" />} iconPosition="start" label="Team" />
-                <Tab icon={<ScheduleIcon fontSize="small" />} iconPosition="start" label="Schedule" />
-              </Tabs>
-            ) : (
-              /* Desktop: Button Group + Controls */
-              <>
-                <ButtonGroup
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    flexShrink: 0,
-                    '& .MuiButton-root': {
-                      borderColor: 'divider',
-                      minWidth: 110,
-                      px: 1.5,
-                      py: 0.75,
-                      fontSize: '0.813rem'
-                    }
-                  }}
-                >
-                  <Button
-                    onClick={() => setTabValue(0)}
-                    startIcon={<People fontSize="small" />}
-                    variant={tabValue === 0 ? 'contained' : 'outlined'}
-                    sx={{
-                      fontWeight: tabValue === 0 ? 600 : 500,
-                      ...(tabValue === 0 && {
-                        backgroundColor: 'primary.main',
-                        color: 'primary.contrastText',
-                        '&:hover': {
-                          backgroundColor: 'primary.dark'
-                        }
-                      })
-                    }}
-                  >
-                    Team
-                  </Button>
-                  <Button
-                    onClick={() => setTabValue(1)}
-                    startIcon={<ScheduleIcon fontSize="small" />}
-                    variant={tabValue === 1 ? 'contained' : 'outlined'}
-                    sx={{
-                      fontWeight: tabValue === 1 ? 600 : 500,
-                      ...(tabValue === 1 && {
-                        backgroundColor: 'primary.main',
-                        color: 'primary.contrastText',
-                        '&:hover': {
-                          backgroundColor: 'primary.dark'
-                        }
-                      })
-                    }}
-                  >
-                    Schedule
-                  </Button>
-                </ButtonGroup>
-
-                {/* Desktop Controls */}
-                <Box sx={{ flex: 1, display: 'flex', gap: 1, justifyContent: 'flex-end', alignItems: 'center', minWidth: 0 }}>
-                  {headerControls}
+                {/* Left: Title + Tabs */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <Typography variant="h5" fontWeight={700}>
+                    Staff
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Chip
+                      label="Team Members"
+                      onClick={() => setActiveTab('team')}
+                      color={activeTab === 'team' ? 'primary' : 'default'}
+                      variant={activeTab === 'team' ? 'filled' : 'outlined'}
+                      sx={{ fontWeight: activeTab === 'team' ? 600 : 400 }}
+                    />
+                    <Chip
+                      label="Schedule"
+                      onClick={() => setActiveTab('schedule')}
+                      color={activeTab === 'schedule' ? 'primary' : 'default'}
+                      variant={activeTab === 'schedule' ? 'filled' : 'outlined'}
+                      sx={{ fontWeight: activeTab === 'schedule' ? 600 : 400 }}
+                    />
+                  </Box>
                 </Box>
-              </>
-            )}
-          </Box>
-        </Container>
-      </Box>
 
-      {/* Mobile Toolbar - Apple style bottom controls */}
-      {isMobile && (
-        <Paper
-          elevation={3}
-          sx={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 1100,
-            borderTop: 1,
-            borderColor: 'divider',
-            backgroundColor: 'background.paper',
-            backdropFilter: 'blur(10px)',
-            backgroundColor: theme.palette.mode === 'dark'
-              ? 'rgba(30, 30, 30, 0.95)'
-              : 'rgba(255, 255, 255, 0.95)'
-          }}
-        >
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            px: 2,
-            py: 1,
-            minHeight: 56
-          }}>
-            {headerControls}
-          </Box>
-        </Paper>
-      )}
+                {/* Right: Controls */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  {activeTab === 'team' && (
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={() => setAddDrawerOpen(true)}
+                      size="small"
+                    >
+                      Add Employee
+                    </Button>
+                  )}
+                  {activeTab === 'schedule' && headerControls}
+                </Box>
+              </Box>
 
-      {/* Content */}
-      <Box sx={{
-        pt: 2
-      }}>
-        {renderContent()}
-      </Box>
-    </Box>
+              {/* Tab Content */}
+              <Box sx={{ flex: 1, overflow: 'auto' }}>
+                {activeTab === 'team' && <TeamMembers />}
+                {activeTab === 'schedule' && <Schedule />}
+              </Box>
+
+              {/* Add Staff Drawer */}
+              <AddStaffMemberDrawer
+                open={addDrawerOpen}
+                onClose={() => setAddDrawerOpen(false)}
+              />
+            </Box>
+          }
+        />
+      </Routes>
+    </StaffHeaderControlsContext.Provider>
   );
 };
 
